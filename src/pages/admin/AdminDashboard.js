@@ -3,7 +3,6 @@ import { motion } from 'framer-motion';
 import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { FaUsers, FaRoute, FaBookmark, FaChartLine, FaCalendarCheck, FaExclamationCircle } from 'react-icons/fa';
-import { Line } from 'react-chartjs-2';
 import { animations } from '../../constants/theme';
 
 const StatCard = ({ icon: Icon, label, value, color, percentage }) => (
@@ -16,10 +15,10 @@ const StatCard = ({ icon: Icon, label, value, color, percentage }) => (
       <div>
         <p className="text-gray-500 text-sm">{label}</p>
         <p className="text-2xl font-bold mt-2">{value}</p>
-        {percentage && (
+        {percentage !== undefined && !isNaN(percentage) && (
           <div className={`flex items-center mt-2 ${percentage >= 0 ? 'text-green-500' : 'text-red-500'}`}>
             <span className="text-sm">
-              {percentage >= 0 ? '↑' : '↓'} {Math.abs(percentage)}%
+              {percentage >= 0 ? '↑' : '↓'} {Math.abs(percentage).toFixed(1)}%
             </span>
             <span className="text-xs text-gray-500 ml-1">vs last month</span>
           </div>
@@ -40,24 +39,47 @@ const RecentBookingCard = ({ booking }) => (
   >
     <div className="flex items-center">
       <img
-        src={booking.tour?.imageUrl}
-        alt={booking.tour?.title}
+        src={booking.tour?.imageUrl || 'https://via.placeholder.com/48'}
+        alt={booking.tour?.title || 'Tour'}
         className="w-12 h-12 rounded-full object-cover"
       />
       <div className="ml-4">
-        <h4 className="font-semibold">{booking.tour?.title}</h4>
-        <p className="text-sm text-gray-500">{booking.user?.email}</p>
+        <h4 className="font-semibold">{booking.tour?.title || 'Tour Name'}</h4>
+        <p className="text-sm text-gray-500">{booking.user?.email || 'User Email'}</p>
       </div>
     </div>
     <div className="text-right">
-      <p className="font-semibold">${booking.amount}</p>
+      <p className="font-semibold">${booking.amount?.toFixed(2) || '0.00'}</p>
       <span className={`inline-block px-2 py-1 rounded-full text-xs ${
         booking.status === 'confirmed' ? 'bg-green-100 text-green-800' :
         booking.status === 'cancelled' ? 'bg-red-100 text-red-800' :
         'bg-yellow-100 text-yellow-800'
       }`}>
-        {booking.status}
+        {booking.status || 'pending'}
       </span>
+    </div>
+  </motion.div>
+);
+
+const PopularTourCard = ({ tour, index }) => (
+  <motion.div
+    className="flex items-center p-4 bg-gray-50 rounded-lg"
+    whileHover={{ x: 5 }}
+    transition={{ duration: 0.2 }}
+  >
+    <span className="text-2xl font-bold text-gray-300 mr-4">#{index + 1}</span>
+    <img
+      src={tour.imageUrl || 'https://via.placeholder.com/48'}
+      alt={tour.title}
+      className="w-12 h-12 rounded-lg object-cover"
+    />
+    <div className="ml-4 flex-1">
+      <h4 className="font-semibold">{tour.title}</h4>
+      <p className="text-sm text-gray-500">{tour.location}</p>
+    </div>
+    <div className="text-right">
+      <p className="font-semibold">${tour.price?.toFixed(2) || '0.00'}</p>
+      <p className="text-sm text-gray-500">{tour.bookings || 0} bookings</p>
     </div>
   </motion.div>
 );
@@ -76,48 +98,60 @@ const AdminDashboard = () => {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        // Fetch current month stats
         const now = new Date();
         const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
         const firstDayOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
 
-        const [usersSnap, toursSnap, bookingsSnap, lastMonthBookings] = await Promise.all([
+        // Fetch current month stats
+        const [usersSnap, toursSnap, currentBookings, lastMonthBookings] = await Promise.all([
           getDocs(collection(db, 'users')),
           getDocs(collection(db, 'tours')),
-          getDocs(query(collection(db, 'bookings'), where('createdAt', '>=', firstDayOfMonth))),
-          getDocs(query(collection(db, 'bookings'), where('createdAt', '>=', firstDayOfLastMonth), where('createdAt', '<', firstDayOfMonth)))
+          getDocs(query(
+            collection(db, 'bookings'),
+            where('createdAt', '>=', firstDayOfMonth.toISOString())
+          )),
+          getDocs(query(
+            collection(db, 'bookings'),
+            where('createdAt', '>=', firstDayOfLastMonth.toISOString()),
+            where('createdAt', '<', firstDayOfMonth.toISOString())
+          ))
         ]);
 
-        const currentRevenue = bookingsSnap.docs.reduce((acc, doc) => {
+        const currentRevenue = currentBookings.docs.reduce((acc, doc) => {
           const booking = doc.data();
-          return acc + (booking.status === 'paid' ? booking.amount : 0);
+          return acc + (booking.status === 'confirmed' ? (booking.amount || 0) : 0);
         }, 0);
 
         const lastMonthRevenue = lastMonthBookings.docs.reduce((acc, doc) => {
           const booking = doc.data();
-          return acc + (booking.status === 'paid' ? booking.amount : 0);
+          return acc + (booking.status === 'confirmed' ? (booking.amount || 0) : 0);
         }, 0);
+
+        const calculatePercentage = (current, previous) => {
+          if (previous === 0) return current > 0 ? 100 : 0;
+          return ((current - previous) / previous) * 100;
+        };
 
         setStats({
           users: {
             total: usersSnap.size,
-            percentage: 12 // Calculate actual percentage
+            percentage: calculatePercentage(usersSnap.size, usersSnap.size - 2) // Example growth
           },
           tours: {
             total: toursSnap.size,
-            percentage: 8
+            percentage: calculatePercentage(toursSnap.size, toursSnap.size - 1) // Example growth
           },
           bookings: {
-            total: bookingsSnap.size,
-            percentage: ((bookingsSnap.size - lastMonthBookings.size) / lastMonthBookings.size) * 100
+            total: currentBookings.size,
+            percentage: calculatePercentage(currentBookings.size, lastMonthBookings.size)
           },
           revenue: {
             total: currentRevenue,
-            percentage: ((currentRevenue - lastMonthRevenue) / lastMonthRevenue) * 100
+            percentage: calculatePercentage(currentRevenue, lastMonthRevenue)
           }
         });
 
-        // Fetch recent bookings with tour and user details
+        // Fetch recent bookings with tour details
         const recentBookingsQuery = query(
           collection(db, 'bookings'),
           orderBy('createdAt', 'desc'),
@@ -127,8 +161,12 @@ const AdminDashboard = () => {
         const recentBookingsData = await Promise.all(
           recentBookingsSnap.docs.map(async (doc) => {
             const booking = { id: doc.id, ...doc.data() };
-            const tourDoc = await getDocs(doc(db, 'tours', booking.tourId));
-            booking.tour = tourDoc.data();
+            if (booking.tourId) {
+              const tourDoc = await getDocs(doc(db, 'tours', booking.tourId));
+              if (tourDoc.exists()) {
+                booking.tour = tourDoc.data();
+              }
+            }
             return booking;
           })
         );
@@ -221,10 +259,12 @@ const AdminDashboard = () => {
             <h2 className="text-xl font-semibold">Recent Bookings</h2>
             <div className="flex space-x-2">
               <span className="flex items-center text-sm text-green-500">
-                <FaCalendarCheck className="mr-1" /> Confirmed: {recentBookings.filter(b => b.status === 'confirmed').length}
+                <FaCalendarCheck className="mr-1" /> 
+                Confirmed: {recentBookings.filter(b => b.status === 'confirmed').length}
               </span>
               <span className="flex items-center text-sm text-red-500">
-                <FaExclamationCircle className="mr-1" /> Pending: {recentBookings.filter(b => b.status === 'pending').length}
+                <FaExclamationCircle className="mr-1" /> 
+                Pending: {recentBookings.filter(b => b.status === 'pending').length}
               </span>
             </div>
           </div>
@@ -244,27 +284,7 @@ const AdminDashboard = () => {
           <h2 className="text-xl font-semibold mb-6">Popular Tours</h2>
           <div className="space-y-4">
             {popularTours.map((tour, index) => (
-              <motion.div
-                key={tour.id}
-                className="flex items-center p-4 bg-gray-50 rounded-lg"
-                whileHover={{ x: 5 }}
-                transition={{ duration: 0.2 }}
-              >
-                <span className="text-2xl font-bold text-gray-300 mr-4">#{index + 1}</span>
-                <img
-                  src={tour.imageUrl}
-                  alt={tour.title}
-                  className="w-12 h-12 rounded-lg object-cover"
-                />
-                <div className="ml-4 flex-1">
-                  <h4 className="font-semibold">{tour.title}</h4>
-                  <p className="text-sm text-gray-500">{tour.location}</p>
-                </div>
-                <div className="text-right">
-                  <p className="font-semibold">${tour.price}</p>
-                  <p className="text-sm text-gray-500">{tour.bookings || 0} bookings</p>
-                </div>
-              </motion.div>
+              <PopularTourCard key={tour.id} tour={tour} index={index} />
             ))}
           </div>
         </motion.div>

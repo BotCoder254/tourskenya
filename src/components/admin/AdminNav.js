@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { FaHome, FaRoute, FaBookmark, FaUsers, FaSignOutAlt } from 'react-icons/fa';
+import { FaHome, FaRoute, FaBookmark, FaSignOutAlt } from 'react-icons/fa';
 import { auth } from '../../config/firebase';
 
 const AdminNav = () => {
@@ -8,9 +8,8 @@ const AdminNav = () => {
 
   const navItems = [
     { path: '/admin', icon: <FaHome />, label: 'Dashboard' },
-    { path: '/admin/tours', icon: <FaRoute />, label: 'Tours' },
-    { path: '/admin/bookings', icon: <FaBookmark />, label: 'Bookings' },
-    { path: '/admin/users', icon: <FaUsers />, label: 'Users' },
+    { path: '/admin/tours', icon: <FaRoute />, label: 'Manage Tours' },
+    { path: '/admin/bookings', icon: <FaBookmark />, label: 'Manage Bookings' },
   ];
 
   const handleSignOut = async () => {

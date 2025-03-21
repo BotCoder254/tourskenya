@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { collection, getDocs, updateDoc, doc, query, orderBy, where } from 'firebase/firestore';
+import { collection, getDocs, updateDoc, doc, query, orderBy, where, limit } from 'firebase/firestore';
 import { db } from '../../config/firebase';
-import { FaCheck, FaTimes, FaSpinner, FaFilter, FaSearch, FaCalendar, FaUser, FaMoneyBillWave, FaEllipsisV } from 'react-icons/fa';
+import { FaCheck, FaTimes, FaFilter, FaSearch, FaCalendar, FaUser, FaMoneyBillWave, FaSortAmountDown, FaSortAmountUp } from 'react-icons/fa';
 import { animations } from '../../constants/theme';
 
 const BookingStatusBadge = ({ status }) => {
   const getStatusStyles = () => {
-    switch (status) {
+    switch (status?.toLowerCase()) {
       case 'confirmed':
         return 'bg-green-100 text-green-800';
       case 'cancelled':
@@ -21,81 +21,78 @@ const BookingStatusBadge = ({ status }) => {
 
   return (
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusStyles()}`}>
-      {status.charAt(0).toUpperCase() + status.slice(1)}
+      {status?.charAt(0).toUpperCase() + status?.slice(1) || 'Unknown'}
     </span>
   );
 };
 
 const BookingCard = ({ booking, onStatusChange }) => {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [showActions, setShowActions] = useState(false);
+
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
 
   return (
     <motion.div
-      className="bg-white rounded-lg shadow-md p-6 mb-4"
+      className="bg-white rounded-lg shadow-lg p-6 relative"
       whileHover={{ y: -2 }}
       transition={{ duration: 0.2 }}
+      onMouseEnter={() => setShowActions(true)}
+      onMouseLeave={() => setShowActions(false)}
     >
-      <div className="flex justify-between items-start">
-        <div className="flex items-center">
+      <div className="flex items-start justify-between">
+        <div className="flex items-start space-x-4">
           <img
-            src={booking.tour?.imageUrl}
-            alt={booking.tour?.title}
+            src={booking.tour?.imageUrl || 'https://via.placeholder.com/64'}
+            alt={booking.tour?.title || 'Tour'}
             className="w-16 h-16 rounded-lg object-cover"
           />
-          <div className="ml-4">
-            <h3 className="text-lg font-semibold">{booking.tour?.title}</h3>
-            <p className="text-gray-500">{booking.user?.email}</p>
+          <div>
+            <h3 className="font-semibold text-lg">{booking.tour?.title || 'Unknown Tour'}</h3>
+            <p className="text-gray-600">{booking.user?.email || 'Unknown User'}</p>
+            <div className="mt-2 space-y-1">
+              <p className="text-sm text-gray-500">
+                <FaCalendar className="inline mr-2" />
+                {formatDate(booking.date)}
+              </p>
+              <p className="text-sm text-gray-500">
+                <FaUser className="inline mr-2" />
+                {booking.groupSize || 1} {booking.groupSize === 1 ? 'person' : 'people'}
+              </p>
+              <p className="text-sm text-gray-500">
+                <FaMoneyBillWave className="inline mr-2" />
+                ${booking.amount?.toFixed(2) || '0.00'}
+              </p>
+            </div>
           </div>
         </div>
-        <div className="relative">
-          <button
-            onClick={() => setIsMenuOpen(!isMenuOpen)}
-            className="p-2 hover:bg-gray-100 rounded-full"
-          >
-            <FaEllipsisV className="text-gray-500" />
-          </button>
-          {isMenuOpen && (
-            <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10">
-              <div className="py-1">
+        <div className="flex flex-col items-end space-y-2">
+          <BookingStatusBadge status={booking.status} />
+          {showActions && booking.status !== 'cancelled' && (
+            <div className="flex space-x-2">
+              {booking.status !== 'confirmed' && (
                 <button
-                  onClick={() => {
-                    onStatusChange(booking.id, 'confirmed');
-                    setIsMenuOpen(false);
-                  }}
-                  className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full"
+                  onClick={() => onStatusChange(booking.id, 'confirmed')}
+                  className="p-2 text-green-500 hover:bg-green-50 rounded-lg transition-colors duration-200"
                 >
-                  <FaCheck className="mr-2 text-green-500" />
-                  Confirm Booking
+                  <FaCheck />
                 </button>
-                <button
-                  onClick={() => {
-                    onStatusChange(booking.id, 'cancelled');
-                    setIsMenuOpen(false);
-                  }}
-                  className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full"
-                >
-                  <FaTimes className="mr-2 text-red-500" />
-                  Cancel Booking
-                </button>
-              </div>
+              )}
+              <button
+                onClick={() => onStatusChange(booking.id, 'cancelled')}
+                className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors duration-200"
+              >
+                <FaTimes />
+              </button>
             </div>
           )}
-        </div>
-      </div>
-      <div className="mt-4 grid grid-cols-3 gap-4">
-        <div>
-          <p className="text-sm text-gray-500">Date</p>
-          <p className="font-semibold">
-            {new Date(booking.date).toLocaleDateString()}
-          </p>
-        </div>
-        <div>
-          <p className="text-sm text-gray-500">Amount</p>
-          <p className="font-semibold">${booking.amount}</p>
-        </div>
-        <div>
-          <p className="text-sm text-gray-500">Status</p>
-          <BookingStatusBadge status={booking.status} />
         </div>
       </div>
     </motion.div>
@@ -116,7 +113,8 @@ const ManageBookings = () => {
     total: 0,
     confirmed: 0,
     pending: 0,
-    cancelled: 0
+    cancelled: 0,
+    revenue: 0
   });
 
   useEffect(() => {
@@ -137,34 +135,42 @@ const ManageBookings = () => {
         const date = new Date();
         if (filters.dateRange === 'today') {
           date.setHours(0, 0, 0, 0);
-          q = query(q, where('date', '>=', date));
+          q = query(q, where('date', '>=', date.toISOString()));
         } else if (filters.dateRange === 'week') {
           date.setDate(date.getDate() - 7);
-          q = query(q, where('date', '>=', date));
+          q = query(q, where('date', '>=', date.toISOString()));
         } else if (filters.dateRange === 'month') {
           date.setMonth(date.getMonth() - 1);
-          q = query(q, where('date', '>=', date));
+          q = query(q, where('date', '>=', date.toISOString()));
         }
       }
 
+      // Apply sorting
       q = query(q, orderBy(filters.sortBy, filters.sortOrder));
 
       const bookingsSnap = await getDocs(q);
       const bookingsData = await Promise.all(
         bookingsSnap.docs.map(async (doc) => {
           const booking = { id: doc.id, ...doc.data() };
-          const tourDoc = await getDocs(doc(db, 'tours', booking.tourId));
-          booking.tour = tourDoc.data();
+          if (booking.tourId) {
+            const tourDoc = await getDocs(doc(db, 'tours', booking.tourId));
+            if (tourDoc.exists()) {
+              booking.tour = tourDoc.data();
+            }
+          }
           return booking;
         })
       );
 
-      // Update stats
+      // Calculate stats
       const newStats = bookingsData.reduce((acc, booking) => {
         acc.total++;
         acc[booking.status]++;
+        if (booking.status === 'confirmed') {
+          acc.revenue += booking.amount || 0;
+        }
         return acc;
-      }, { total: 0, confirmed: 0, pending: 0, cancelled: 0 });
+      }, { total: 0, confirmed: 0, pending: 0, cancelled: 0, revenue: 0 });
 
       setStats(newStats);
       setBookings(bookingsData);
@@ -191,6 +197,10 @@ const ManageBookings = () => {
     setFilters(prev => ({ ...prev, [name]: value }));
   };
 
+  const toggleSortOrder = () => {
+    handleFilterChange('sortOrder', filters.sortOrder === 'asc' ? 'desc' : 'asc');
+  };
+
   return (
     <motion.div
       className="p-6"
@@ -198,28 +208,34 @@ const ManageBookings = () => {
       animate={animations.fadeIn.animate}
       transition={animations.fadeIn.transition}
     >
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-800">Manage Bookings</h1>
-        <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-2">
-            <span className="text-sm text-gray-500">Total:</span>
-            <span className="font-semibold">{stats.total}</span>
+      {/* Header with Stats */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-800 mb-4">Manage Bookings</h1>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="bg-white rounded-lg shadow p-4">
+            <p className="text-gray-500">Total Bookings</p>
+            <p className="text-2xl font-bold">{stats.total}</p>
           </div>
-          <div className="flex items-center space-x-2">
-            <span className="text-sm text-green-500">Confirmed:</span>
-            <span className="font-semibold">{stats.confirmed}</span>
+          <div className="bg-white rounded-lg shadow p-4">
+            <p className="text-green-500">Confirmed</p>
+            <p className="text-2xl font-bold">{stats.confirmed}</p>
           </div>
-          <div className="flex items-center space-x-2">
-            <span className="text-sm text-yellow-500">Pending:</span>
-            <span className="font-semibold">{stats.pending}</span>
+          <div className="bg-white rounded-lg shadow p-4">
+            <p className="text-yellow-500">Pending</p>
+            <p className="text-2xl font-bold">{stats.pending}</p>
           </div>
-          <div className="flex items-center space-x-2">
-            <span className="text-sm text-red-500">Cancelled:</span>
-            <span className="font-semibold">{stats.cancelled}</span>
+          <div className="bg-white rounded-lg shadow p-4">
+            <p className="text-red-500">Cancelled</p>
+            <p className="text-2xl font-bold">{stats.cancelled}</p>
+          </div>
+          <div className="bg-white rounded-lg shadow p-4">
+            <p className="text-primary">Total Revenue</p>
+            <p className="text-2xl font-bold">${stats.revenue.toFixed(2)}</p>
           </div>
         </div>
       </div>
 
+      {/* Filters */}
       <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           <div className="relative">
@@ -275,14 +291,16 @@ const ManageBookings = () => {
           </div>
 
           <button
-            onClick={() => handleFilterChange('sortOrder', filters.sortOrder === 'asc' ? 'desc' : 'asc')}
-            className="flex items-center justify-center px-4 py-2 border rounded-lg hover:bg-gray-50"
+            onClick={toggleSortOrder}
+            className="flex items-center justify-center space-x-2 px-4 py-2 border rounded-lg hover:bg-gray-50"
           >
-            {filters.sortOrder === 'asc' ? '↑' : '↓'}
+            {filters.sortOrder === 'asc' ? <FaSortAmountUp /> : <FaSortAmountDown />}
+            <span>{filters.sortOrder === 'asc' ? 'Ascending' : 'Descending'}</span>
           </button>
         </div>
       </div>
 
+      {/* Bookings List */}
       {loading ? (
         <div className="flex justify-center items-center h-64">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
@@ -296,6 +314,11 @@ const ManageBookings = () => {
               onStatusChange={handleStatusChange}
             />
           ))}
+          {bookings.length === 0 && (
+            <div className="text-center py-12 bg-white rounded-lg shadow">
+              <p className="text-gray-500">No bookings found</p>
+            </div>
+          )}
         </div>
       )}
     </motion.div>

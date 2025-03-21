@@ -28,6 +28,7 @@ yarn-error.log*
 .firebase/
 firebase-debug.log
 .firebaserc
+*-firebase-adminsdk-*.json
 
 # Stripe
 .stripe/

@@ -14,6 +14,8 @@ import StripeProvider from './components/payment/StripeProvider';
 import CheckoutForm from './components/payment/CheckoutForm';
 import AdminNav from './components/admin/AdminNav';
 import AdminDashboard from './pages/admin/AdminDashboard';
+import ManageTours from './pages/admin/ManageTours';
+import ManageBookings from './pages/admin/ManageBookings';
 import { PERMISSIONS } from './config/roles';
 
 // Online images for authentication pages
@@ -99,9 +101,14 @@ const AppRoutes = () => {
           <AdminDashboard />
         </AdminRoute>
       } />
-      <Route path="/admin/*" element={
+      <Route path="/admin/tours" element={
         <AdminRoute>
-          <AdminDashboard />
+          <ManageTours />
+        </AdminRoute>
+      } />
+      <Route path="/admin/bookings" element={
+        <AdminRoute>
+          <ManageBookings />
         </AdminRoute>
       } />
 
