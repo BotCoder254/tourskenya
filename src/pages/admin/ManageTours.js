@@ -286,7 +286,7 @@ const ManageTours = () => {
             setEditingTour(null);
             setIsModalOpen(true);
           }}
-          className="flex items-center space-x-2 bg-primary hover:bg-secondary text-white px-4 py-2 rounded-lg transition-colors duration-200"
+          className="flex items-center space-x-2 bg-primary hover:bg-secondary text-white px-4 py-2 rounded-lg transition-colors duration-200 bg-blue-500"
         >
           <FaPlus />
           <span>Create New Tour</span>
