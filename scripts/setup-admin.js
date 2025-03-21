@@ -1,5 +1,5 @@
 const admin = require('firebase-admin');
-const serviceAccount = require('./twitterclone-47ebf-firebase-adminsdk-ffeu2-ac2901c132.json');
+const serviceAccount = require('./twitterclone-47ebf-firebase-adminsdk-ffeu2-ac2901c132.json'); //CHANGE  THIS TO YOUR FIREBASE KEY
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
