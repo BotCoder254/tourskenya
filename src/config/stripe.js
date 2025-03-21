@@ -1,6 +1,11 @@
 import { loadStripe } from '@stripe/stripe-js';
 
-// Replace with your Stripe publishable key
-const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY);
+const stripePublishableKey = process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY;
+
+if (!stripePublishableKey) {
+  throw new Error('Stripe publishable key is missing. Please check your .env file.');
+}
+
+const stripePromise = loadStripe(stripePublishableKey);
 
 export default stripePromise; 
