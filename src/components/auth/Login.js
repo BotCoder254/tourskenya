@@ -89,7 +89,7 @@ const Login = () => {
 
         <button
           type="submit"
-          className="w-full py-2 px-4 bg-primary text-white rounded-lg hover:bg-secondary transition duration-200"
+          className="w-full py-2 px-4 bg-primary text-white rounded-lg hover:bg-secondary transition duration-200 bg-blue-500"
         >
           Sign In
         </button>

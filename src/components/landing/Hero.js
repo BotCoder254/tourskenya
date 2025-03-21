@@ -1,15 +1,91 @@
 import { motion, useScroll, useTransform } from 'framer-motion';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { animations } from '../../constants/theme';
+import { useAuth } from '../../contexts/AuthContext';
+import { FaSignInAlt, FaUserPlus, FaCompass, FaSignOutAlt } from 'react-icons/fa';
+import { auth } from '../../config/firebase';
+import { PERMISSIONS } from '../../config/roles';
 
 const HERO_IMAGE = "https://images.unsplash.com/photo-1523805009345-7448845a9e53?q=80&w=2072&auto=format&fit=crop";
 
 const Hero = () => {
   const { scrollY } = useScroll();
   const y = useTransform(scrollY, [0, 500], [0, 150]);
+  const { user, hasPermission } = useAuth();
+  const location = useLocation();
+
+  const isAdminRoute = location.pathname.startsWith('/admin');
+
+  const handleSignOut = async () => {
+    try {
+      await auth.signOut();
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+  };
 
   return (
     <div className="relative h-screen overflow-hidden">
+      {/* Navigation Bar */}
+      <motion.nav
+        className="absolute top-0 left-0 right-0 z-50 px-6 py-4 bg-black/10 backdrop-blur-sm"
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2, duration: 0.5 }}
+      >
+        <div className="container mx-auto flex justify-between items-center">
+          <Link to="/" className="text-white text-2xl font-bold">
+            Kenya Tours
+          </Link>
+          <div className="flex items-center space-x-6">
+            {!user && !isAdminRoute && (
+              <>
+                <Link
+                  to="/login"
+                  className="flex items-center text-white hover:text-primary transition-colors duration-200"
+                >
+                  <FaSignInAlt className="mr-2" />
+                  Sign In
+                </Link>
+                <Link
+                  to="/signup"
+                  className="flex items-center bg-primary hover:bg-secondary text-white px-4 py-2 rounded-full transition-colors duration-200"
+                >
+                  <FaUserPlus className="mr-2" />
+                  Sign Up
+                </Link>
+              </>
+            )}
+            {user && !isAdminRoute && (
+              <>
+                <Link
+                  to="/explore"
+                  className="flex items-center text-white hover:text-primary transition-colors duration-200"
+                >
+                  <FaCompass className="mr-2" />
+                  Explore Tours
+                </Link>
+                {hasPermission(PERMISSIONS.ACCESS_ADMIN) && (
+                  <Link
+                    to="/admin"
+                    className="flex items-center bg-primary hover:bg-secondary text-white px-4 py-2 rounded-full transition-colors duration-200"
+                  >
+                    Admin Panel
+                  </Link>
+                )}
+                <button
+                  onClick={handleSignOut}
+                  className="flex items-center text-white bg-red-500 hover:bg-red-600 px-4 py-2 rounded-full transition-colors duration-200"
+                >
+                  <FaSignOutAlt className="mr-2" />
+                  Sign Out
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      </motion.nav>
+
       <motion.div 
         style={{ y }}
         className="absolute inset-0"

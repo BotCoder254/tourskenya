@@ -1,6 +1,8 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from '../config/firebase';
+import { auth, db } from '../config/firebase';
+import { doc, getDoc } from 'firebase/firestore';
+import { ROLES, ROLE_PERMISSIONS } from '../config/roles';
 
 const AuthContext = createContext();
 
@@ -17,11 +19,27 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [authInitialized, setAuthInitialized] = useState(false);
+  const [userRole, setUserRole] = useState(ROLES.GUEST);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, 
-      (user) => {
-        setUser(user);
+      async (user) => {
+        if (user) {
+          // Get user role from Firestore
+          try {
+            const userDoc = await getDoc(doc(db, 'users', user.uid));
+            const role = userDoc.exists() ? userDoc.data().role || ROLES.USER : ROLES.USER;
+            setUserRole(role);
+            setUser({ ...user, role });
+          } catch (error) {
+            console.error('Error fetching user role:', error);
+            setUserRole(ROLES.USER);
+            setUser({ ...user, role: ROLES.USER });
+          }
+        } else {
+          setUser(null);
+          setUserRole(ROLES.GUEST);
+        }
         setLoading(false);
         setAuthInitialized(true);
       },
@@ -35,6 +53,14 @@ export const AuthProvider = ({ children }) => {
 
     return () => unsubscribe();
   }, []);
+
+  const hasPermission = (permission) => {
+    if (!user) return false;
+    const permissions = ROLE_PERMISSIONS[userRole] || [];
+    return permissions.includes(permission);
+  };
+
+  const isAdmin = () => userRole === ROLES.ADMIN;
 
   if (error) {
     return (
@@ -51,10 +77,12 @@ export const AuthProvider = ({ children }) => {
     user,
     loading,
     error,
-    authInitialized
+    authInitialized,
+    userRole,
+    hasPermission,
+    isAdmin
   };
 
-  // Only render children when auth is initialized
   return (
     <AuthContext.Provider value={value}>
       {authInitialized ? children : (

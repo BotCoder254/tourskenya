@@ -12,12 +12,39 @@ import BookingForm from './components/booking/BookingForm';
 import BookingSuccess from './components/booking/BookingSuccess';
 import StripeProvider from './components/payment/StripeProvider';
 import CheckoutForm from './components/payment/CheckoutForm';
+import AdminNav from './components/admin/AdminNav';
+import AdminDashboard from './pages/admin/AdminDashboard';
+import { PERMISSIONS } from './config/roles';
 
 // Online images for authentication pages
 const AUTH_IMAGES = {
   login: "https://images.unsplash.com/photo-1535941339077-2dd1c7963098?q=80&w=2073&auto=format&fit=crop",
   signup: "https://images.unsplash.com/photo-1516426122078-c23e76319801?q=80&w=2068&auto=format&fit=crop",
   reset: "https://images.unsplash.com/photo-1547471080-7cc2caa01a7e?q=80&w=2071&auto=format&fit=crop"
+};
+
+// Admin route wrapper component
+const AdminRoute = ({ children }) => {
+  const { user, loading, hasPermission } = useAuth();
+  
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (!user || !hasPermission(PERMISSIONS.ACCESS_ADMIN)) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return (
+    <>
+      <AdminNav />
+      {children}
+    </>
+  );
 };
 
 // Separate Routes component to access auth context
@@ -64,6 +91,18 @@ const AppRoutes = () => {
             <CheckoutForm />
           </StripeProvider>
         </ProtectedRoute>
+      } />
+
+      {/* Admin routes */}
+      <Route path="/admin" element={
+        <AdminRoute>
+          <AdminDashboard />
+        </AdminRoute>
+      } />
+      <Route path="/admin/*" element={
+        <AdminRoute>
+          <AdminDashboard />
+        </AdminRoute>
       } />
 
       {/* Public routes */}
