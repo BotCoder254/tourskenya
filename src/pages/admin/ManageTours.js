@@ -3,47 +3,49 @@ import { motion } from 'framer-motion';
 import { collection, getDocs, addDoc, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../../config/firebase';
-import { FaPlus, FaEdit, FaTrash, FaImage, FaCalendar, FaUsers, FaDollarSign, FaMapMarkerAlt } from 'react-icons/fa';
+import { FaPlus, FaEdit, FaTrash, FaImage, FaCalendar, FaUsers, FaDollarSign, FaMapMarkerAlt, FaStar } from 'react-icons/fa';
 import { animations } from '../../constants/theme';
 
 const TourCard = ({ tour, onEdit, onDelete }) => (
   <motion.div
-    className="bg-white rounded-lg shadow-lg overflow-hidden"
-    whileHover={{ y: -5 }}
-    transition={{ duration: 0.2 }}
+    className="bg-white rounded-xl overflow-hidden shadow-lg"
+    whileHover={{ y: -10 }}
+    transition={{ duration: 0.3 }}
   >
     <div className="relative">
       <img
-        src={tour.imageUrl || 'https://via.placeholder.com/400x200'}
+        src={tour.imageUrl || tour.images?.[0] || 'https://via.placeholder.com/400x200'}
         alt={tour.title}
         className="w-full h-48 object-cover"
       />
       <div className="absolute top-4 right-4 bg-primary text-white px-3 py-1 rounded-full">
-        ${tour.price?.toFixed(2) || '0.00'}
+        From ${tour.price?.toFixed(2) || '0.00'}
       </div>
     </div>
+
     <div className="p-6">
       <h3 className="text-xl font-semibold mb-2">{tour.title}</h3>
-      <p className="text-gray-600 mb-4 line-clamp-2">{tour.description}</p>
       
-      <div className="grid grid-cols-2 gap-4 mb-4">
-        <div className="flex items-center text-gray-600">
-          <FaMapMarkerAlt className="mr-2" />
-          <span>{tour.location}</span>
-        </div>
-        <div className="flex items-center text-gray-600">
-          <FaCalendar className="mr-2" />
-          <span>{tour.duration}</span>
-        </div>
-        <div className="flex items-center text-gray-600">
-          <FaUsers className="mr-2" />
-          <span>Max: {tour.maxGroupSize}</span>
-        </div>
-        <div className="flex items-center text-gray-600">
-          <FaDollarSign className="mr-2" />
-          <span>{tour.price?.toFixed(2) || '0.00'}</span>
-        </div>
+      <div className="flex items-center mb-3">
+        <FaMapMarkerAlt className="text-primary mr-2" />
+        <span className="text-gray-600">{tour.location}</span>
       </div>
+
+      <div className="flex items-center mb-3">
+        <FaCalendar className="text-primary mr-2" />
+        <span className="text-gray-600">{tour.duration}</span>
+      </div>
+
+      <div className="flex items-center mb-4">
+        <div className="flex text-yellow-400">
+          {[...Array(5)].map((_, i) => (
+            <FaStar key={i} className={i < (tour.rating || 5) ? 'text-yellow-400' : 'text-gray-300'} />
+          ))}
+        </div>
+        <span className="ml-2 text-gray-600">({tour.reviews || 0} reviews)</span>
+      </div>
+
+      <p className="text-gray-600 mb-4 line-clamp-2">{tour.description}</p>
 
       <div className="flex justify-end space-x-2">
         <button
@@ -71,13 +73,23 @@ const TourForm = ({ tour, onSubmit, onCancel }) => {
     price: tour?.price || '',
     duration: tour?.duration || '',
     maxGroupSize: tour?.maxGroupSize || '',
-    image: null,
+    images: [],
+    imageUrls: tour?.images || []
   });
+  const [imagePreview, setImagePreview] = useState(tour?.imageUrl || '');
+  const [uploading, setUploading] = useState(false);
 
   const handleInputChange = (e) => {
     const { name, value, files } = e.target;
-    if (name === 'image') {
-      setFormData(prev => ({ ...prev, image: files[0] }));
+    if (name === 'images') {
+      setFormData(prev => ({ ...prev, images: Array.from(files) }));
+      if (files.length > 0) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setImagePreview(reader.result);
+        };
+        reader.readAsDataURL(files[0]);
+      }
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
     }
@@ -85,7 +97,36 @@ const TourForm = ({ tour, onSubmit, onCancel }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    onSubmit(formData);
+    setUploading(true);
+    try {
+      const imageUrls = [...formData.imageUrls];
+      
+      // Upload new images
+      for (const image of formData.images) {
+        const imageRef = ref(storage, `tours/${Date.now()}-${image.name}`);
+        await uploadBytes(imageRef, image);
+        const url = await getDownloadURL(imageRef);
+        imageUrls.push(url);
+      }
+
+      const tourData = {
+        ...formData,
+        price: parseFloat(formData.price),
+        maxGroupSize: parseInt(formData.maxGroupSize),
+        images: imageUrls,
+        imageUrl: imageUrls[0] || '',
+        updatedAt: new Date().toISOString()
+      };
+
+      // Remove the images field as it contains File objects
+      delete tourData.images;
+      
+      await onSubmit(tourData);
+    } catch (error) {
+      console.error('Error uploading images:', error);
+    } finally {
+      setUploading(false);
+    }
   };
 
   return (
@@ -165,22 +206,34 @@ const TourForm = ({ tour, onSubmit, onCancel }) => {
       </div>
 
       <div>
-        <label className="block text-gray-700 mb-2">Tour Image</label>
-        <div className="flex items-center space-x-2">
-          <label className="flex items-center space-x-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg cursor-pointer hover:bg-gray-200 transition-colors duration-200">
-            <FaImage />
-            <span>Choose Image</span>
-            <input
-              type="file"
-              name="image"
-              onChange={handleInputChange}
-              className="hidden"
-              accept="image/*"
-            />
-          </label>
-          {formData.image && (
-            <span className="text-green-500">Image selected</span>
+        <label className="block text-gray-700 mb-2">Tour Images</label>
+        <div className="flex flex-col space-y-4">
+          {imagePreview && (
+            <div className="relative w-full h-48 rounded-lg overflow-hidden">
+              <img
+                src={imagePreview}
+                alt="Preview"
+                className="w-full h-full object-cover"
+              />
+            </div>
           )}
+          <div className="flex items-center space-x-2">
+            <label className="flex items-center space-x-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg cursor-pointer hover:bg-gray-200 transition-colors duration-200">
+              <FaImage />
+              <span>Choose Images</span>
+              <input
+                type="file"
+                name="images"
+                onChange={handleInputChange}
+                className="hidden"
+                accept="image/*"
+                multiple
+              />
+            </label>
+            {formData.images.length > 0 && (
+              <span className="text-green-500">{formData.images.length} images selected</span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -194,9 +247,10 @@ const TourForm = ({ tour, onSubmit, onCancel }) => {
         </button>
         <button
           type="submit"
-          className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-secondary transition-colors duration-200"
+          disabled={uploading}
+          className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-secondary transition-colors duration-200 disabled:opacity-50"
         >
-          {tour ? 'Update Tour' : 'Create Tour'}
+          {uploading ? 'Uploading...' : (tour ? 'Update Tour' : 'Create Tour')}
         </button>
       </div>
     </form>
@@ -228,27 +282,15 @@ const ManageTours = () => {
     }
   };
 
-  const handleSubmit = async (formData) => {
-    setLoading(true);
+  const handleSubmit = async (tourData) => {
     try {
-      let imageUrl = '';
-      if (formData.image) {
-        const imageRef = ref(storage, `tours/${formData.image.name}`);
-        await uploadBytes(imageRef, formData.image);
-        imageUrl = await getDownloadURL(imageRef);
-      }
-
-      const tourData = {
-        ...formData,
-        imageUrl: imageUrl || (editingTour?.imageUrl || ''),
-        updatedAt: new Date().toISOString(),
-      };
-
       if (editingTour) {
         await updateDoc(doc(db, 'tours', editingTour.id), tourData);
       } else {
-        tourData.createdAt = new Date().toISOString();
-        await addDoc(collection(db, 'tours'), tourData);
+        await addDoc(collection(db, 'tours'), {
+          ...tourData,
+          createdAt: new Date().toISOString()
+        });
       }
 
       setIsModalOpen(false);
@@ -256,8 +298,6 @@ const ManageTours = () => {
       fetchTours();
     } catch (error) {
       console.error('Error saving tour:', error);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -286,7 +326,7 @@ const ManageTours = () => {
             setEditingTour(null);
             setIsModalOpen(true);
           }}
-          className="flex items-center space-x-2 bg-primary hover:bg-secondary text-white px-4 py-2 rounded-lg transition-colors duration-200 bg-blue-500"
+          className="flex items-center space-x-2 bg-primary hover:bg-secondary text-white px-4 py-2 rounded-lg transition-colors duration-200"
         >
           <FaPlus />
           <span>Create New Tour</span>
