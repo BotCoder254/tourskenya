@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { collection, getDocs, updateDoc, doc, query, orderBy, where, limit } from 'firebase/firestore';
+import { collection, getDocs, updateDoc, doc, query, orderBy, where, limit, getDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { FaCheck, FaTimes, FaFilter, FaSearch, FaCalendar, FaUser, FaMoneyBillWave, FaSortAmountDown, FaSortAmountUp } from 'react-icons/fa';
 import { animations } from '../../constants/theme';
+import { format, parseISO } from 'date-fns';
 
 const BookingStatusBadge = ({ status }) => {
   const getStatusStyles = () => {
@@ -99,80 +100,149 @@ const BookingCard = ({ booking, onStatusChange }) => {
   );
 };
 
+const BookingRow = ({ booking, onStatusChange }) => {
+  const formatDate = (dateString) => {
+    try {
+      return format(parseISO(dateString), 'PPP p');
+    } catch (error) {
+      return 'Invalid Date';
+    }
+  };
+
+  return (
+    <tr className="hover:bg-gray-50">
+      <td className="px-6 py-4">
+        <div className="flex items-center space-x-3">
+          <div className="flex-shrink-0 h-10 w-10">
+            <img 
+              className="h-10 w-10 rounded-full" 
+              src={booking.user?.photoURL || `https://ui-avatars.com/api/?name=${booking.user?.email || 'User'}&background=random`} 
+              alt="" 
+            />
+          </div>
+          <div>
+            <div className="text-sm font-medium text-gray-900">{booking.user?.email || 'N/A'}</div>
+            <div className="text-sm text-gray-500">{booking.user?.displayName || 'No name'}</div>
+          </div>
+        </div>
+      </td>
+      <td className="px-6 py-4">
+        <div className="flex items-center space-x-3">
+          <div className="flex-shrink-0 h-10 w-10">
+            <img 
+              className="h-10 w-10 rounded object-cover" 
+              src={booking.tour?.imageUrl || 'https://via.placeholder.com/40'} 
+              alt="" 
+            />
+          </div>
+          <div>
+            <div className="text-sm font-medium text-gray-900">{booking.tour?.title || 'N/A'}</div>
+            <div className="text-sm text-gray-500">
+              <span className="mr-2">Group size: {booking.groupSize}</span>
+              <span>{booking.tour?.duration || 0} days</span>
+            </div>
+          </div>
+        </div>
+      </td>
+      <td className="px-6 py-4 whitespace-nowrap">
+        <div className="text-sm text-gray-900">${booking.amount?.toFixed(2) || '0.00'}</div>
+        <div className="text-sm text-gray-500">{formatDate(booking.createdAt)}</div>
+      </td>
+      <td className="px-6 py-4 whitespace-nowrap">
+        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+          ${booking.status === 'confirmed' ? 'bg-green-100 text-green-800' : 
+            booking.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 
+            'bg-red-100 text-red-800'}`}>
+          {booking.status}
+        </span>
+      </td>
+      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+        <div className="flex items-center justify-end space-x-2">
+          {booking.status !== 'cancelled' && (
+            <>
+              {booking.status !== 'confirmed' && (
+                <button
+                  onClick={() => onStatusChange(booking.id, 'confirmed')}
+                  className="text-green-600 hover:text-green-900"
+                >
+                  <FaCheck className="w-5 h-5" />
+                </button>
+              )}
+              <button
+                onClick={() => onStatusChange(booking.id, 'cancelled')}
+                className="text-red-600 hover:text-red-900"
+              >
+                <FaTimes className="w-5 h-5" />
+              </button>
+            </>
+          )}
+        </div>
+      </td>
+    </tr>
+  );
+};
+
 const ManageBookings = () => {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filters, setFilters] = useState({
-    status: 'all',
-    search: '',
-    dateRange: 'all',
-    sortBy: 'date',
-    sortOrder: 'desc'
-  });
-  const [stats, setStats] = useState({
-    total: 0,
-    confirmed: 0,
-    pending: 0,
-    cancelled: 0,
-    revenue: 0
-  });
+  const [showFilters, setShowFilters] = useState(false);
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [sortBy, setSortBy] = useState('date');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
   useEffect(() => {
     fetchBookings();
-  }, [filters]);
+  }, [filterStatus, sortBy, startDate, endDate]);
 
   const fetchBookings = async () => {
     try {
       setLoading(true);
-      let q = query(collection(db, 'bookings'));
-
+      let bookingsQuery = collection(db, 'bookings');
+      
       // Apply filters
-      if (filters.status !== 'all') {
-        q = query(q, where('status', '==', filters.status));
+      if (filterStatus !== 'all') {
+        bookingsQuery = query(bookingsQuery, where('status', '==', filterStatus));
       }
-
-      if (filters.dateRange !== 'all') {
-        const date = new Date();
-        if (filters.dateRange === 'today') {
-          date.setHours(0, 0, 0, 0);
-          q = query(q, where('date', '>=', date.toISOString()));
-        } else if (filters.dateRange === 'week') {
-          date.setDate(date.getDate() - 7);
-          q = query(q, where('date', '>=', date.toISOString()));
-        } else if (filters.dateRange === 'month') {
-          date.setMonth(date.getMonth() - 1);
-          q = query(q, where('date', '>=', date.toISOString()));
-        }
+      
+      if (startDate && endDate) {
+        bookingsQuery = query(
+          bookingsQuery, 
+          where('createdAt', '>=', startDate),
+          where('createdAt', '<=', endDate)
+        );
       }
 
       // Apply sorting
-      q = query(q, orderBy(filters.sortBy, filters.sortOrder));
+      bookingsQuery = query(bookingsQuery, orderBy(sortBy === 'date' ? 'createdAt' : 'amount', 'desc'));
 
-      const bookingsSnap = await getDocs(q);
+      const bookingsSnap = await getDocs(bookingsQuery);
       const bookingsData = await Promise.all(
-        bookingsSnap.docs.map(async (doc) => {
-          const booking = { id: doc.id, ...doc.data() };
+        bookingsSnap.docs.map(async (bookingDoc) => {
+          const booking = { id: bookingDoc.id, ...bookingDoc.data() };
+          
+          // Fetch tour details
           if (booking.tourId) {
-            const tourDoc = await getDocs(doc(db, 'tours', booking.tourId));
-            if (tourDoc.exists()) {
-              booking.tour = tourDoc.data();
+            const tourDocRef = doc(db, 'tours', booking.tourId);
+            const tourDocSnap = await getDoc(tourDocRef);
+            if (tourDocSnap.exists()) {
+              booking.tour = { id: tourDocSnap.id, ...tourDocSnap.data() };
             }
           }
+
+          // Fetch user details
+          if (booking.userId) {
+            const userDocRef = doc(db, 'users', booking.userId);
+            const userDocSnap = await getDoc(userDocRef);
+            if (userDocSnap.exists()) {
+              booking.user = { id: userDocSnap.id, ...userDocSnap.data() };
+            }
+          }
+
           return booking;
         })
       );
 
-      // Calculate stats
-      const newStats = bookingsData.reduce((acc, booking) => {
-        acc.total++;
-        acc[booking.status]++;
-        if (booking.status === 'confirmed') {
-          acc.revenue += booking.amount || 0;
-        }
-        return acc;
-      }, { total: 0, confirmed: 0, pending: 0, cancelled: 0, revenue: 0 });
-
-      setStats(newStats);
       setBookings(bookingsData);
     } catch (error) {
       console.error('Error fetching bookings:', error);
@@ -183,145 +253,148 @@ const ManageBookings = () => {
 
   const handleStatusChange = async (bookingId, newStatus) => {
     try {
-      await updateDoc(doc(db, 'bookings', bookingId), {
+      const bookingRef = doc(db, 'bookings', bookingId);
+      await updateDoc(bookingRef, {
         status: newStatus,
         updatedAt: new Date().toISOString()
       });
+      
+      // Update the tour's booking count if status changes to confirmed
+      const booking = bookings.find(b => b.id === bookingId);
+      if (booking && booking.tourId) {
+        const tourRef = doc(db, 'tours', booking.tourId);
+        const tourSnap = await getDoc(tourRef);
+        if (tourSnap.exists()) {
+          const currentBookings = tourSnap.data().bookings || 0;
+          await updateDoc(tourRef, {
+            bookings: newStatus === 'confirmed' ? currentBookings + 1 : Math.max(0, currentBookings - 1)
+          });
+        }
+      }
+      
+      // Refresh the bookings list
       fetchBookings();
     } catch (error) {
       console.error('Error updating booking status:', error);
     }
   };
 
+  const handleViewDetails = (booking) => {
+    // Implement the logic to view booking details
+  };
+
   const handleFilterChange = (name, value) => {
-    setFilters(prev => ({ ...prev, [name]: value }));
+    // Implement the logic to handle filter changes
   };
 
   const toggleSortOrder = () => {
-    handleFilterChange('sortOrder', filters.sortOrder === 'asc' ? 'desc' : 'asc');
+    handleFilterChange('sortOrder', filterStatus === 'all' ? 'asc' : 'desc');
   };
 
   return (
-    <motion.div
-      className="p-6"
-      initial={animations.fadeIn.initial}
-      animate={animations.fadeIn.animate}
-      transition={animations.fadeIn.transition}
-    >
-      {/* Header with Stats */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-800 mb-4">Manage Bookings</h1>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-          <div className="bg-white rounded-lg shadow p-4">
-            <p className="text-gray-500">Total Bookings</p>
-            <p className="text-2xl font-bold">{stats.total}</p>
-          </div>
-          <div className="bg-white rounded-lg shadow p-4">
-            <p className="text-green-500">Confirmed</p>
-            <p className="text-2xl font-bold">{stats.confirmed}</p>
-          </div>
-          <div className="bg-white rounded-lg shadow p-4">
-            <p className="text-yellow-500">Pending</p>
-            <p className="text-2xl font-bold">{stats.pending}</p>
-          </div>
-          <div className="bg-white rounded-lg shadow p-4">
-            <p className="text-red-500">Cancelled</p>
-            <p className="text-2xl font-bold">{stats.cancelled}</p>
-          </div>
-          <div className="bg-white rounded-lg shadow p-4">
-            <p className="text-primary">Total Revenue</p>
-            <p className="text-2xl font-bold">${stats.revenue.toFixed(2)}</p>
-          </div>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="sm:flex sm:items-center">
+        <div className="sm:flex-auto">
+          <h1 className="text-xl font-semibold text-gray-900">Manage Bookings</h1>
+          <p className="mt-2 text-sm text-gray-700">
+            View and manage all tour bookings
+          </p>
+        </div>
+        <div className="mt-4 sm:mt-0 sm:ml-16 sm:flex-none space-x-4">
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+          >
+            <FaFilter className="mr-2" />
+            Filters
+          </button>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white"
+          >
+            <option value="date">Sort by Date</option>
+            <option value="amount">Sort by Amount</option>
+          </select>
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-          <div className="relative">
-            <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search bookings..."
-              className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-              value={filters.search}
-              onChange={(e) => handleFilterChange('search', e.target.value)}
-            />
-          </div>
-
-          <div className="relative">
-            <FaFilter className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+      {showFilters && (
+        <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <select
-              className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary appearance-none"
-              value={filters.status}
-              onChange={(e) => handleFilterChange('status', e.target.value)}
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
             >
-              <option value="all">All Status</option>
-              <option value="pending">Pending</option>
+              <option value="all">All Statuses</option>
               <option value="confirmed">Confirmed</option>
+              <option value="pending">Pending</option>
               <option value="cancelled">Cancelled</option>
             </select>
-          </div>
-
-          <div className="relative">
-            <FaCalendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-            <select
-              className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary appearance-none"
-              value={filters.dateRange}
-              onChange={(e) => handleFilterChange('dateRange', e.target.value)}
-            >
-              <option value="all">All Time</option>
-              <option value="today">Today</option>
-              <option value="week">Last 7 Days</option>
-              <option value="month">Last 30 Days</option>
-            </select>
-          </div>
-
-          <div className="relative">
-            <FaMoneyBillWave className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-            <select
-              className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary appearance-none"
-              value={filters.sortBy}
-              onChange={(e) => handleFilterChange('sortBy', e.target.value)}
-            >
-              <option value="date">Sort by Date</option>
-              <option value="amount">Sort by Amount</option>
-              <option value="status">Sort by Status</option>
-            </select>
-          </div>
-
-          <button
-            onClick={toggleSortOrder}
-            className="flex items-center justify-center space-x-2 px-4 py-2 border rounded-lg hover:bg-gray-50"
-          >
-            {filters.sortOrder === 'asc' ? <FaSortAmountUp /> : <FaSortAmountDown />}
-            <span>{filters.sortOrder === 'asc' ? 'Ascending' : 'Descending'}</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Bookings List */}
-      {loading ? (
-        <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {bookings.map((booking) => (
-            <BookingCard
-              key={booking.id}
-              booking={booking}
-              onStatusChange={handleStatusChange}
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+              placeholder="Start Date"
             />
-          ))}
-          {bookings.length === 0 && (
-            <div className="text-center py-12 bg-white rounded-lg shadow">
-              <p className="text-gray-500">No bookings found</p>
-            </div>
-          )}
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+              placeholder="End Date"
+            />
+          </div>
         </div>
       )}
-    </motion.div>
+
+      {loading ? (
+        <div className="min-h-[400px] flex items-center justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500"></div>
+        </div>
+      ) : (
+        <div className="mt-8 flex flex-col">
+          <div className="-my-2 -mx-4 overflow-x-auto sm:-mx-6 lg:-mx-8">
+            <div className="inline-block min-w-full py-2 align-middle md:px-6 lg:px-8">
+              <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
+                <table className="min-w-full divide-y divide-gray-300">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Customer
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Tour Details
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Amount & Date
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Status
+                      </th>
+                      <th scope="col" className="relative px-6 py-3">
+                        <span className="sr-only">Actions</span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {bookings.map((booking) => (
+                      <BookingRow 
+                        key={booking.id} 
+                        booking={booking} 
+                        onStatusChange={handleStatusChange}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 };
 

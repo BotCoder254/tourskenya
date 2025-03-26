@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { collection, getDocs, query, where, orderBy, limit } from 'firebase/firestore';
+import { collection, getDocs, query, where, orderBy, limit, doc, getDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { FaUsers, FaRoute, FaBookmark, FaChartLine, FaCalendarCheck, FaExclamationCircle } from 'react-icons/fa';
 import { animations } from '../../constants/theme';
 
 const StatCard = ({ icon: Icon, label, value, color, percentage }) => (
   <motion.div
-    className="bg-white rounded-lg shadow-lg p-6"
+    className="bg-white rounded-lg shadow p-6 border border-gray-100"
     whileHover={{ y: -5 }}
     transition={{ duration: 0.2 }}
   >
@@ -135,11 +135,11 @@ const AdminDashboard = () => {
         setStats({
           users: {
             total: usersSnap.size,
-            percentage: calculatePercentage(usersSnap.size, usersSnap.size - 2) // Example growth
+            percentage: calculatePercentage(usersSnap.size, usersSnap.size - 2)
           },
           tours: {
             total: toursSnap.size,
-            percentage: calculatePercentage(toursSnap.size, toursSnap.size - 1) // Example growth
+            percentage: calculatePercentage(toursSnap.size, toursSnap.size - 1)
           },
           bookings: {
             total: currentBookings.size,
@@ -159,12 +159,20 @@ const AdminDashboard = () => {
         );
         const recentBookingsSnap = await getDocs(recentBookingsQuery);
         const recentBookingsData = await Promise.all(
-          recentBookingsSnap.docs.map(async (doc) => {
-            const booking = { id: doc.id, ...doc.data() };
+          recentBookingsSnap.docs.map(async (bookingDoc) => {
+            const booking = { id: bookingDoc.id, ...bookingDoc.data() };
             if (booking.tourId) {
-              const tourDoc = await getDocs(doc(db, 'tours', booking.tourId));
-              if (tourDoc.exists()) {
-                booking.tour = tourDoc.data();
+              const tourDocRef = doc(db, 'tours', booking.tourId);
+              const tourDocSnap = await getDoc(tourDocRef);
+              if (tourDocSnap.exists()) {
+                booking.tour = { id: tourDocSnap.id, ...tourDocSnap.data() };
+              }
+            }
+            if (booking.userId) {
+              const userDocRef = doc(db, 'users', booking.userId);
+              const userDocSnap = await getDoc(userDocRef);
+              if (userDocSnap.exists()) {
+                booking.user = { id: userDocSnap.id, ...userDocSnap.data() };
               }
             }
             return booking;
@@ -196,100 +204,97 @@ const AdminDashboard = () => {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-screen">
+      <div className="flex justify-center items-center min-h-[60vh]">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
       </div>
     );
   }
 
   return (
-    <motion.div
-      className="p-6"
-      initial={animations.fadeIn.initial}
-      animate={animations.fadeIn.animate}
-      transition={animations.fadeIn.transition}
-    >
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-800">Dashboard Overview</h1>
-        <div className="flex items-center space-x-2">
-          <span className="text-sm text-gray-500">Last updated:</span>
-          <span className="text-sm font-semibold">{new Date().toLocaleTimeString()}</span>
+    <div className="p-6">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-800">Dashboard Overview</h1>
+          <div className="flex items-center space-x-2">
+            <span className="text-sm text-gray-500">Last updated:</span>
+            <span className="text-sm font-semibold">{new Date().toLocaleTimeString()}</span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <StatCard
+            icon={FaUsers}
+            label="Total Users"
+            value={stats.users.total}
+            color="text-blue-500"
+            percentage={stats.users.percentage}
+          />
+          <StatCard
+            icon={FaRoute}
+            label="Active Tours"
+            value={stats.tours.total}
+            color="text-green-500"
+            percentage={stats.tours.percentage}
+          />
+          <StatCard
+            icon={FaBookmark}
+            label="Monthly Bookings"
+            value={stats.bookings.total}
+            color="text-yellow-500"
+            percentage={stats.bookings.percentage}
+          />
+          <StatCard
+            icon={FaChartLine}
+            label="Monthly Revenue"
+            value={`$${stats.revenue.total.toLocaleString()}`}
+            color="text-purple-500"
+            percentage={stats.revenue.percentage}
+          />
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <motion.div
+            className="bg-white rounded-lg shadow p-6 border border-gray-100"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-semibold">Recent Bookings</h2>
+              <div className="flex space-x-4">
+                <span className="flex items-center text-sm text-green-500">
+                  <FaCalendarCheck className="mr-1" /> 
+                  Confirmed: {recentBookings.filter(b => b.status === 'confirmed').length}
+                </span>
+                <span className="flex items-center text-sm text-red-500">
+                  <FaExclamationCircle className="mr-1" /> 
+                  Pending: {recentBookings.filter(b => b.status === 'pending').length}
+                </span>
+              </div>
+            </div>
+            <div className="space-y-4 max-h-[500px] overflow-y-auto">
+              {recentBookings.map(booking => (
+                <RecentBookingCard key={booking.id} booking={booking} />
+              ))}
+            </div>
+          </motion.div>
+
+          <motion.div
+            className="bg-white rounded-lg shadow p-6 border border-gray-100"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+          >
+            <h2 className="text-xl font-semibold mb-6">Popular Tours</h2>
+            <div className="space-y-4 max-h-[500px] overflow-y-auto">
+              {popularTours.map((tour, index) => (
+                <PopularTourCard key={tour.id} tour={tour} index={index} />
+              ))}
+            </div>
+          </motion.div>
         </div>
       </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <StatCard
-          icon={FaUsers}
-          label="Total Users"
-          value={stats.users.total}
-          color="text-blue-500"
-          percentage={stats.users.percentage}
-        />
-        <StatCard
-          icon={FaRoute}
-          label="Active Tours"
-          value={stats.tours.total}
-          color="text-green-500"
-          percentage={stats.tours.percentage}
-        />
-        <StatCard
-          icon={FaBookmark}
-          label="Monthly Bookings"
-          value={stats.bookings.total}
-          color="text-yellow-500"
-          percentage={stats.bookings.percentage}
-        />
-        <StatCard
-          icon={FaChartLine}
-          label="Monthly Revenue"
-          value={`$${stats.revenue.total.toLocaleString()}`}
-          color="text-purple-500"
-          percentage={stats.revenue.percentage}
-        />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <motion.div
-          className="bg-white rounded-lg shadow-lg p-6"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-semibold">Recent Bookings</h2>
-            <div className="flex space-x-2">
-              <span className="flex items-center text-sm text-green-500">
-                <FaCalendarCheck className="mr-1" /> 
-                Confirmed: {recentBookings.filter(b => b.status === 'confirmed').length}
-              </span>
-              <span className="flex items-center text-sm text-red-500">
-                <FaExclamationCircle className="mr-1" /> 
-                Pending: {recentBookings.filter(b => b.status === 'pending').length}
-              </span>
-            </div>
-          </div>
-          <div className="space-y-4">
-            {recentBookings.map(booking => (
-              <RecentBookingCard key={booking.id} booking={booking} />
-            ))}
-          </div>
-        </motion.div>
-
-        <motion.div
-          className="bg-white rounded-lg shadow-lg p-6"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-        >
-          <h2 className="text-xl font-semibold mb-6">Popular Tours</h2>
-          <div className="space-y-4">
-            {popularTours.map((tour, index) => (
-              <PopularTourCard key={tour.id} tour={tour} index={index} />
-            ))}
-          </div>
-        </motion.div>
-      </div>
-    </motion.div>
+    </div>
   );
 };
 

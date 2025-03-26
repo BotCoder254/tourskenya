@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { collection, getDocs, addDoc, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../../config/firebase';
-import { FaPlus, FaEdit, FaTrash, FaImage, FaCalendar, FaUsers, FaDollarSign, FaMapMarkerAlt, FaStar } from 'react-icons/fa';
+import { FaPlus, FaEdit, FaTrash, FaImage, FaCalendar, FaUsers, FaDollarSign, FaMapMarkerAlt, FaStar, FaSearch, FaList, FaThLarge } from 'react-icons/fa';
 import { animations } from '../../constants/theme';
 
 const TourCard = ({ tour, onEdit, onDelete }) => (
@@ -262,6 +262,10 @@ const ManageTours = () => {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTour, setEditingTour] = useState(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [viewMode, setViewMode] = useState('grid');
 
   useEffect(() => {
     fetchTours();
@@ -312,46 +316,81 @@ const ManageTours = () => {
     }
   };
 
-  return (
-    <motion.div
-      className="p-6"
-      initial={animations.fadeIn.initial}
-      animate={animations.fadeIn.animate}
-      transition={animations.fadeIn.transition}
-    >
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-800">Manage Tours</h1>
-        <button
-          onClick={() => {
-            setEditingTour(null);
-            setIsModalOpen(true);
-          }}
-          className="flex items-center space-x-2 bg-primary hover:bg-secondary text-white px-4 py-2 rounded-lg transition-colors duration-200"
-        >
-          <FaPlus />
-          <span>Create New Tour</span>
-        </button>
-      </div>
+  const filteredTours = tours.filter(tour => {
+    const matchesSearch = tour.title.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = filterStatus === 'all' || (filterStatus === 'active' && tour.status === 'active') || (filterStatus === 'inactive' && tour.status === 'inactive');
+    return matchesSearch && matchesStatus;
+  });
 
-      {loading ? (
-        <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+  return (
+    <div className="p-6">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-800">Manage Tours</h1>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg flex items-center space-x-2"
+          >
+            <FaPlus />
+            <span>Add New Tour</span>
+          </button>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {tours.map((tour) => (
-            <TourCard
-              key={tour.id}
-              tour={tour}
-              onEdit={() => {
-                setEditingTour(tour);
-                setIsModalOpen(true);
-              }}
-              onDelete={handleDelete}
-            />
-          ))}
+
+        <div className="bg-white rounded-lg shadow p-6 border border-gray-100">
+          <div className="flex flex-col sm:flex-row justify-between items-center mb-6 space-y-4 sm:space-y-0">
+            <div className="flex items-center space-x-4 w-full sm:w-auto">
+              <div className="relative flex-1 sm:flex-none">
+                <input
+                  type="text"
+                  placeholder="Search tours..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full sm:w-64 pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
+                />
+                <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              </div>
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50"
+              >
+                <option value="all">All Status</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+            <div className="flex items-center space-x-4 w-full sm:w-auto justify-end">
+              <button
+                onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                {viewMode === 'grid' ? <FaList /> : <FaThLarge />}
+              </button>
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="flex justify-center items-center min-h-[400px]">
+              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+            </div>
+          ) : (
+            <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6' : 'space-y-4'}>
+              {filteredTours.map(tour => (
+                <TourCard
+                  key={tour.id}
+                  tour={tour}
+                  viewMode={viewMode}
+                  onEdit={() => {
+                    setEditingTour(tour);
+                    setIsModalOpen(true);
+                  }}
+                  onDelete={handleDelete}
+                />
+              ))}
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       {/* Tour Form Modal */}
       {isModalOpen && (
@@ -378,7 +417,7 @@ const ManageTours = () => {
           </motion.div>
         </div>
       )}
-    </motion.div>
+    </div>
   );
 };
 
