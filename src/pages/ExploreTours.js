@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { collection, query, orderBy, limit, startAfter, getDocs, where, addDoc, Timestamp } from 'firebase/firestore';
+import { collection, query, orderBy, limit, startAfter, getDocs, where, addDoc, Timestamp, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import { FaSearch, FaFilter, FaMapMarkerAlt, FaClock, FaMoneyBillWave, FaStar, FaUsers, FaCalendarAlt, FaCheck } from 'react-icons/fa';
+import { FaSearch, FaFilter, FaMapMarkerAlt, FaClock, FaMoneyBillWave, FaStar, FaUsers, FaCalendarAlt, FaCheck, FaHeart } from 'react-icons/fa';
 import { animations, colors } from '../constants/theme';
 import debounce from 'lodash/debounce';
 import DatePicker from 'react-datepicker';
@@ -157,6 +157,8 @@ const ExploreTours = () => {
     duration: '',
     sortBy: 'price_asc'
   });
+  const [wishlist, setWishlist] = useState({});
+  const [wishlistLoading, setWishlistLoading] = useState(true);
 
   // Debounced search function
   const debouncedSearch = useCallback(
@@ -253,6 +255,74 @@ const ExploreTours = () => {
   const handleBookNow = (tour) => {
     setSelectedTour(tour);
     setIsBookingModalOpen(true);
+  };
+
+  // Fetch wishlist status for all tours
+  const fetchWishlistStatus = async () => {
+    try {
+      setWishlistLoading(true);
+      // TODO: Replace with actual user ID from auth
+      const userId = 'current-user-id';
+      const q = query(
+        collection(db, 'wishlist'),
+        where('userId', '==', userId)
+      );
+      
+      const snapshot = await getDocs(q);
+      const wishlistStatus = {};
+      snapshot.docs.forEach(doc => {
+        const data = doc.data();
+        wishlistStatus[data.tourId] = {
+          id: doc.id,
+          ...data
+        };
+      });
+      
+      setWishlist(wishlistStatus);
+    } catch (error) {
+      console.error('Error fetching wishlist status:', error);
+    } finally {
+      setWishlistLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchWishlistStatus();
+  }, []);
+
+  const handleWishlist = async (tour) => {
+    try {
+      // TODO: Replace with actual user ID from auth
+      const userId = 'current-user-id';
+      
+      if (wishlist[tour.id]) {
+        // Remove from wishlist
+        await deleteDoc(doc(db, 'wishlist', wishlist[tour.id].id));
+        setWishlist(prev => {
+          const newWishlist = { ...prev };
+          delete newWishlist[tour.id];
+          return newWishlist;
+        });
+      } else {
+        // Add to wishlist
+        const docRef = await addDoc(collection(db, 'wishlist'), {
+          userId,
+          tourId: tour.id,
+          addedAt: Timestamp.now()
+        });
+        
+        setWishlist(prev => ({
+          ...prev,
+          [tour.id]: {
+            id: docRef.id,
+            userId,
+            tourId: tour.id
+          }
+        }));
+      }
+    } catch (error) {
+      console.error('Error updating wishlist:', error);
+    }
   };
 
   return (
@@ -365,6 +435,16 @@ const ExploreTours = () => {
                   <div className="absolute top-4 right-4 bg-primary text-white px-3 py-1 rounded-full">
                     ${tour.price}
                   </div>
+                  <motion.button
+                    onClick={() => handleWishlist(tour)}
+                    className={`absolute top-4 left-4 p-2 bg-white rounded-full shadow-lg transition-colors duration-200 ${
+                      wishlist[tour.id] ? 'text-danger hover:bg-danger hover:text-white' : 'text-gray-400 hover:text-danger'
+                    }`}
+                    whileTap={{ scale: 0.8 }}
+                    animate={wishlist[tour.id] ? { scale: [1, 1.2, 1] } : {}}
+                  >
+                    <FaHeart className={`text-lg ${wishlistLoading ? 'opacity-50' : ''}`} />
+                  </motion.button>
                   {tour.rating && (
                     <div className="absolute bottom-4 left-4 bg-black/50 text-white px-3 py-1 rounded-full flex items-center">
                       <FaStar className="text-warning mr-1" />

@@ -11,7 +11,7 @@ const Landing = () => {
       <PopularTours />
       <div className="text-center py-12">
         <Link
-          to="/explore"
+          to="/tours"
           className="inline-block bg-primary hover:bg-secondary text-white font-semibold py-3 px-8 rounded-full transition-colors duration-200"
         >
           Explore All Tours

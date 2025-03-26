@@ -1,18 +1,13 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './contexts/AuthContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Landing from './pages/Landing';
 import ExploreTours from './pages/ExploreTours';
+import Wishlist from './pages/Wishlist';
 import Login from './components/auth/Login';
 import SignUp from './components/auth/SignUp';
 import PasswordReset from './components/auth/PasswordReset';
 import AuthLayout from './layouts/AuthLayout';
-import ProtectedRoute from './components/auth/ProtectedRoute';
-import { useAuth } from './contexts/AuthContext';
-import BookingForm from './components/booking/BookingForm';
-import BookingSuccess from './components/booking/BookingSuccess';
-import StripeProvider from './components/payment/StripeProvider';
-import CheckoutForm from './components/payment/CheckoutForm';
-import AdminNav from './components/admin/AdminNav';
+import MainLayout from './layouts/MainLayout';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import ManageTours from './pages/admin/ManageTours';
 import ManageBookings from './pages/admin/ManageBookings';
@@ -25,10 +20,10 @@ const AUTH_IMAGES = {
   reset: "https://images.unsplash.com/photo-1547471080-7cc2caa01a7e?q=80&w=2071&auto=format&fit=crop"
 };
 
-// Admin route wrapper component
-const AdminRoute = ({ children }) => {
+// Protected route component that handles admin and user routes
+const ProtectedRoute = ({ children, requireAdmin = false }) => {
   const { user, loading, hasPermission } = useAuth();
-  
+
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -37,24 +32,22 @@ const AdminRoute = ({ children }) => {
     );
   }
 
-  if (!user || !hasPermission(PERMISSIONS.ACCESS_ADMIN)) {
-    return <Navigate to="/login" replace />;
+  if (!user) {
+    return <Navigate to="/login" state={{ from: window.location.pathname }} replace />;
   }
 
-  return (
-    <>
-      <AdminNav />
-      {children}
-    </>
-  );
+  if (requireAdmin && !hasPermission(PERMISSIONS.ACCESS_ADMIN)) {
+    return <Navigate to="/tours" replace />;
+  }
+
+  return <MainLayout>{children}</MainLayout>;
 };
 
-// Separate Routes component to access auth context
-const AppRoutes = () => {
-  const { user, loading, authInitialized } = useAuth();
+// Landing route that redirects authenticated users
+const LandingRoute = () => {
+  const { user, loading, hasPermission } = useAuth();
 
-  // Show loading spinner while auth is initializing
-  if (!authInitialized || loading) {
+  if (loading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
@@ -62,90 +55,101 @@ const AppRoutes = () => {
     );
   }
 
-  return (
-    <Routes>
-      {/* Protected routes */}
-      <Route path="/" element={
-        <ProtectedRoute>
-          <Landing />
-        </ProtectedRoute>
-      } />
-      <Route path="/explore" element={
-        <ProtectedRoute>
-          <ExploreTours />
-        </ProtectedRoute>
-      } />
-      <Route path="/booking/:tourId" element={
-        <ProtectedRoute>
-          <StripeProvider>
-            <BookingForm />
-          </StripeProvider>
-        </ProtectedRoute>
-      } />
-      <Route path="/booking/success" element={
-        <ProtectedRoute>
-          <BookingSuccess />
-        </ProtectedRoute>
-      } />
-      <Route path="/payment/:bookingId" element={
-        <ProtectedRoute>
-          <StripeProvider>
-            <CheckoutForm />
-          </StripeProvider>
-        </ProtectedRoute>
-      } />
+  if (user) {
+    if (hasPermission(PERMISSIONS.ACCESS_ADMIN)) {
+      return <Navigate to="/admin" replace />;
+    }
+    return <Navigate to="/tours" replace />;
+  }
 
-      {/* Admin routes */}
-      <Route path="/admin" element={
-        <AdminRoute>
-          <AdminDashboard />
-        </AdminRoute>
-      } />
-      <Route path="/admin/tours" element={
-        <AdminRoute>
-          <ManageTours />
-        </AdminRoute>
-      } />
-      <Route path="/admin/bookings" element={
-        <AdminRoute>
-          <ManageBookings />
-        </AdminRoute>
-      } />
+  return <Landing />;
+};
 
-      {/* Public routes */}
-      <Route path="/login" element={
-        user ? <Navigate to="/" replace /> : (
-          <AuthLayout imageSrc={AUTH_IMAGES.login}>
-            <Login />
-          </AuthLayout>
-        )
-      } />
-      <Route path="/signup" element={
-        user ? <Navigate to="/" replace /> : (
-          <AuthLayout imageSrc={AUTH_IMAGES.signup}>
-            <SignUp />
-          </AuthLayout>
-        )
-      } />
-      <Route path="/reset-password" element={
-        user ? <Navigate to="/" replace /> : (
-          <AuthLayout imageSrc={AUTH_IMAGES.reset}>
-            <PasswordReset />
-          </AuthLayout>
-        )
-      } />
+// Public route that handles authentication state
+const PublicRoute = ({ children }) => {
+  const { user, loading, hasPermission } = useAuth();
 
-      {/* Catch all route */}
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
-  );
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (user) {
+    if (hasPermission(PERMISSIONS.ACCESS_ADMIN)) {
+      return <Navigate to="/admin" replace />;
+    }
+    return <Navigate to="/tours" replace />;
+  }
+
+  return children;
 };
 
 const App = () => {
   return (
     <AuthProvider>
       <Router>
-        <AppRoutes />
+        <Routes>
+          {/* Landing page - redirects authenticated users */}
+          <Route path="/" element={<LandingRoute />} />
+
+          {/* Auth routes - only accessible when not authenticated */}
+          <Route path="/login" element={
+            <PublicRoute>
+              <AuthLayout imageSrc={AUTH_IMAGES.login}>
+                <Login />
+              </AuthLayout>
+            </PublicRoute>
+          } />
+          <Route path="/signup" element={
+            <PublicRoute>
+              <AuthLayout imageSrc={AUTH_IMAGES.signup}>
+                <SignUp />
+              </AuthLayout>
+            </PublicRoute>
+          } />
+          <Route path="/reset-password" element={
+            <PublicRoute>
+              <AuthLayout imageSrc={AUTH_IMAGES.reset}>
+                <PasswordReset />
+              </AuthLayout>
+            </PublicRoute>
+          } />
+
+          {/* User routes - require authentication */}
+          <Route path="/tours" element={
+            <ProtectedRoute>
+              <ExploreTours />
+            </ProtectedRoute>
+          } />
+          <Route path="/wishlist" element={
+            <ProtectedRoute>
+              <Wishlist />
+            </ProtectedRoute>
+          } />
+
+          {/* Admin routes - require admin role */}
+          <Route path="/admin" element={
+            <ProtectedRoute requireAdmin={true}>
+              <AdminDashboard />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/tours" element={
+            <ProtectedRoute requireAdmin={true}>
+              <ManageTours />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/bookings" element={
+            <ProtectedRoute requireAdmin={true}>
+              <ManageBookings />
+            </ProtectedRoute>
+          } />
+
+          {/* Catch all route - redirect to appropriate page based on auth state */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
       </Router>
     </AuthProvider>
   );

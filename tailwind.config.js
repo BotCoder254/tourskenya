@@ -17,6 +17,18 @@ module.exports = {
       },
       animation: {
         'bounce-slow': 'bounce 3s linear infinite',
+        'pop': 'pop 0.3s ease-in-out',
+        'scale': 'scale 0.2s ease-in-out',
+      },
+      keyframes: {
+        pop: {
+          '0%, 100%': { transform: 'scale(1)' },
+          '50%': { transform: 'scale(1.2)' },
+        },
+        scale: {
+          '0%': { transform: 'scale(0.95)' },
+          '100%': { transform: 'scale(1)' },
+        },
       },
       transitionProperty: {
         'height': 'height',

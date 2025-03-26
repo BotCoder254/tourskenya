@@ -1,4 +1,4 @@
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, FacebookAuthProvider } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
@@ -14,18 +14,32 @@ const firebaseConfig = {
   measurementId: "G-0WGJF9H0EL"
 };
 
-// Initialize Firebase only if it hasn't been initialized yet
+// Initialize Firebase only if no apps are initialized
 let app;
-try {
-  app = initializeApp(firebaseConfig);
-} catch (error) {
-  if (!/already exists/.test(error.message)) {
-    console.error('Firebase initialization error', error.stack);
+if (!getApps().length) {
+  try {
+    app = initializeApp(firebaseConfig);
+  } catch (error) {
+    console.error('Firebase initialization error', error);
   }
+} else {
+  app = getApps()[0];
 }
 
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-export const storage = getStorage(app);
-export const googleProvider = new GoogleAuthProvider();
-export const facebookProvider = new FacebookAuthProvider(); 
+// Initialize services
+const auth = getAuth(app);
+const db = getFirestore(app);
+const storage = getStorage(app);
+const googleProvider = new GoogleAuthProvider();
+const facebookProvider = new FacebookAuthProvider();
+
+// Configure providers
+googleProvider.setCustomParameters({
+  prompt: 'select_account'
+});
+
+facebookProvider.setCustomParameters({
+  display: 'popup'
+});
+
+export { auth, db, storage, googleProvider, facebookProvider }; 

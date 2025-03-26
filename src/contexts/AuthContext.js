@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, getAuth } from 'firebase/auth';
 import { auth, db } from '../config/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { ROLES, ROLE_PERMISSIONS } from '../config/roles';
@@ -22,36 +22,51 @@ export const AuthProvider = ({ children }) => {
   const [userRole, setUserRole] = useState(ROLES.GUEST);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, 
-      async (user) => {
-        if (user) {
-          // Get user role from Firestore
+    let unsubscribe;
+    try {
+      // Ensure auth is initialized
+      const auth = getAuth();
+      
+      unsubscribe = onAuthStateChanged(auth, 
+        async (firebaseUser) => {
           try {
-            const userDoc = await getDoc(doc(db, 'users', user.uid));
-            const role = userDoc.exists() ? userDoc.data().role || ROLES.USER : ROLES.USER;
-            setUserRole(role);
-            setUser({ ...user, role });
-          } catch (error) {
-            console.error('Error fetching user role:', error);
-            setUserRole(ROLES.USER);
-            setUser({ ...user, role: ROLES.USER });
+            if (firebaseUser) {
+              // Get user role from Firestore
+              const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+              const role = userDoc.exists() ? userDoc.data().role || ROLES.USER : ROLES.USER;
+              setUserRole(role);
+              setUser({ ...firebaseUser, role });
+            } else {
+              setUser(null);
+              setUserRole(ROLES.GUEST);
+            }
+          } catch (err) {
+            console.error('Error processing auth state change:', err);
+            setError(err);
+            setUser(null);
+            setUserRole(ROLES.GUEST);
+          } finally {
+            setLoading(false);
+            setAuthInitialized(true);
           }
-        } else {
-          setUser(null);
-          setUserRole(ROLES.GUEST);
+        },
+        (err) => {
+          console.error('Auth state change error:', err);
+          setError(err);
+          setLoading(false);
+          setAuthInitialized(true);
         }
-        setLoading(false);
-        setAuthInitialized(true);
-      },
-      (error) => {
-        console.error('Auth state change error:', error);
-        setError(error);
-        setLoading(false);
-        setAuthInitialized(true);
-      }
-    );
+      );
+    } catch (err) {
+      console.error('Auth initialization error:', err);
+      setError(err);
+      setLoading(false);
+      setAuthInitialized(true);
+    }
 
-    return () => unsubscribe();
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
   const hasPermission = (permission) => {
@@ -85,7 +100,7 @@ export const AuthProvider = ({ children }) => {
 
   return (
     <AuthContext.Provider value={value}>
-      {authInitialized ? children : (
+      {!loading ? children : (
         <div className="flex justify-center items-center min-h-screen">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
         </div>
