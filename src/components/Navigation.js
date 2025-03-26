@@ -10,7 +10,13 @@ import {
   FaClipboardList,
   FaUsers,
   FaTachometerAlt,
-  FaBars
+  FaBars,
+  FaCalendarAlt,
+  FaCog,
+  FaUserCircle,
+  FaBookmark,
+  FaHistory,
+  FaSearch
 } from 'react-icons/fa';
 import { useAuth } from '../contexts/AuthContext';
 import { PERMISSIONS } from '../config/roles';
@@ -32,11 +38,18 @@ const Navigation = () => {
   const isActive = (path) => location.pathname === path;
 
   const navItems = [
+    // User Navigation Items
     {
       to: '/tours',
       icon: <FaCompass />,
       label: 'Explore Tours',
       permission: null // Available to all authenticated users
+    },
+    {
+      to: '/search',
+      icon: <FaSearch />,
+      label: 'Search Tours',
+      permission: null
     },
     {
       to: '/wishlist',
@@ -45,22 +58,59 @@ const Navigation = () => {
       permission: null
     },
     {
+      to: '/my-bookings',
+      icon: <FaBookmark />,
+      label: 'My Bookings',
+      permission: null
+    },
+    {
+      to: '/booking-history',
+      icon: <FaHistory />,
+      label: 'Booking History',
+      permission: null
+    },
+    {
+      to: '/profile',
+      icon: <FaUserCircle />,
+      label: 'My Profile',
+      permission: null
+    },
+
+    // Admin Navigation Items
+    {
       to: '/admin',
       icon: <FaTachometerAlt />,
       label: 'Dashboard',
-      permission: PERMISSIONS.ACCESS_ADMIN
+      permission: PERMISSIONS.ACCESS_ADMIN,
+      isAdmin: true
     },
     {
       to: '/admin/tours',
       icon: <FaClipboardList />,
       label: 'Manage Tours',
-      permission: PERMISSIONS.MANAGE_TOURS
+      permission: PERMISSIONS.MANAGE_TOURS,
+      isAdmin: true
     },
     {
       to: '/admin/bookings',
       icon: <FaUsers />,
       label: 'Manage Bookings',
-      permission: PERMISSIONS.MANAGE_BOOKINGS
+      permission: PERMISSIONS.MANAGE_BOOKINGS,
+      isAdmin: true
+    },
+    {
+      to: '/admin/availability',
+      icon: <FaCalendarAlt />,
+      label: 'Tour Availability',
+      permission: PERMISSIONS.MANAGE_TOURS,
+      isAdmin: true
+    },
+    {
+      to: '/admin/settings',
+      icon: <FaCog />,
+      label: 'Settings',
+      permission: PERMISSIONS.ACCESS_ADMIN,
+      isAdmin: true
     }
   ];
 
@@ -97,6 +147,10 @@ const Navigation = () => {
     }
   };
 
+  // Filter and group navigation items
+  const userNavItems = navItems.filter(item => !item.isAdmin);
+  const adminNavItems = navItems.filter(item => item.isAdmin);
+
   return (
     <motion.nav
       className="fixed left-0 top-0 h-screen bg-white shadow-lg z-50 flex flex-col"
@@ -132,9 +186,46 @@ const Navigation = () => {
         </motion.span>
       </Link>
 
-      {/* Navigation Items */}
+      {/* User Navigation Items */}
       <div className="flex-1 px-2">
-        {navItems.map((item) => {
+        {userNavItems.map((item) => {
+          if (item.permission && !hasPermission(item.permission)) return null;
+          
+          return (
+            <Link
+              key={item.to}
+              to={item.to}
+              className={`flex items-center space-x-4 px-4 py-3 mb-2 rounded-lg transition-all duration-200 ${
+                isActive(item.to)
+                  ? 'bg-primary text-white'
+                  : 'text-gray-600 hover:bg-primary/10'
+              }`}
+            >
+              <span className="text-xl">{item.icon}</span>
+              <motion.span
+                variants={textVariants}
+                className="font-medium"
+              >
+                {item.label}
+              </motion.span>
+            </Link>
+          );
+        })}
+
+        {/* Admin Section Divider - Only show if user has admin permissions */}
+        {hasPermission(PERMISSIONS.ACCESS_ADMIN) && (
+          <div className="my-4 px-4">
+            <motion.div
+              variants={textVariants}
+              className="border-b border-gray-200"
+            >
+              <span className="text-xs font-medium text-gray-500">ADMIN</span>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Admin Navigation Items */}
+        {adminNavItems.map((item) => {
           if (item.permission && !hasPermission(item.permission)) return null;
           
           return (

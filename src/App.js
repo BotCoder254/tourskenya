@@ -11,6 +11,13 @@ import MainLayout from './layouts/MainLayout';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import ManageTours from './pages/admin/ManageTours';
 import ManageBookings from './pages/admin/ManageBookings';
+import TourAvailability from './pages/admin/TourAvailability';
+import AdminSettings from './pages/admin/AdminSettings';
+import UserProfile from './pages/user/UserProfile';
+import MyBookings from './pages/user/MyBookings';
+import BookingHistory from './pages/user/BookingHistory';
+import SearchResults from './pages/SearchResults';
+import TourDetails from './pages/TourDetails';
 import { PERMISSIONS } from './config/roles';
 
 // Online images for authentication pages
@@ -43,7 +50,7 @@ const ProtectedRoute = ({ children, requireAdmin = false }) => {
   return <MainLayout>{children}</MainLayout>;
 };
 
-// Landing route that redirects authenticated users
+// Landing route that redirects authenticated users but preserves the landing page UI
 const LandingRoute = () => {
   const { user, loading, hasPermission } = useAuth();
 
@@ -55,14 +62,7 @@ const LandingRoute = () => {
     );
   }
 
-  if (user) {
-    if (hasPermission(PERMISSIONS.ACCESS_ADMIN)) {
-      return <Navigate to="/admin" replace />;
-    }
-    return <Navigate to="/tours" replace />;
-  }
-
-  return <Landing />;
+  return <Landing isAuthenticated={!!user} userRole={user ? (hasPermission(PERMISSIONS.ACCESS_ADMIN) ? 'admin' : 'user') : 'guest'} />;
 };
 
 // Public route that handles authentication state
@@ -92,7 +92,7 @@ const App = () => {
     <AuthProvider>
       <Router>
         <Routes>
-          {/* Landing page - redirects authenticated users */}
+          {/* Landing page - now handles authenticated users while preserving UI */}
           <Route path="/" element={<LandingRoute />} />
 
           {/* Auth routes - only accessible when not authenticated */}
@@ -124,9 +124,34 @@ const App = () => {
               <ExploreTours />
             </ProtectedRoute>
           } />
+          <Route path="/tours/:id" element={
+            <ProtectedRoute>
+              <TourDetails />
+            </ProtectedRoute>
+          } />
+          <Route path="/search" element={
+            <ProtectedRoute>
+              <SearchResults />
+            </ProtectedRoute>
+          } />
           <Route path="/wishlist" element={
             <ProtectedRoute>
               <Wishlist />
+            </ProtectedRoute>
+          } />
+          <Route path="/my-bookings" element={
+            <ProtectedRoute>
+              <MyBookings />
+            </ProtectedRoute>
+          } />
+          <Route path="/booking-history" element={
+            <ProtectedRoute>
+              <BookingHistory />
+            </ProtectedRoute>
+          } />
+          <Route path="/profile" element={
+            <ProtectedRoute>
+              <UserProfile />
             </ProtectedRoute>
           } />
 
@@ -144,6 +169,16 @@ const App = () => {
           <Route path="/admin/bookings" element={
             <ProtectedRoute requireAdmin={true}>
               <ManageBookings />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/availability" element={
+            <ProtectedRoute requireAdmin={true}>
+              <TourAvailability />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/settings" element={
+            <ProtectedRoute requireAdmin={true}>
+              <AdminSettings />
             </ProtectedRoute>
           } />
 
