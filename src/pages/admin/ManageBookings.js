@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { collection, getDocs, updateDoc, doc, query, orderBy, where, limit, getDoc } from 'firebase/firestore';
 import { db } from '../../config/firebase';
-import { FaCheck, FaTimes, FaFilter, FaSearch, FaCalendar, FaUser, FaMoneyBillWave, FaSortAmountDown, FaSortAmountUp } from 'react-icons/fa';
+import { FaCheck, FaTimes, FaFilter, FaSearch, FaCalendar, FaUser, FaMoneyBillWave, FaSortAmountDown, FaSortAmountUp, FaEye } from 'react-icons/fa';
 import { animations } from '../../constants/theme';
 import { format, parseISO } from 'date-fns';
+import { toast } from 'react-hot-toast';
+import BookingDetails from '../../components/admin/BookingDetails';
 
 const BookingStatusBadge = ({ status }) => {
   const getStatusStyles = () => {
@@ -100,7 +102,7 @@ const BookingCard = ({ booking, onStatusChange }) => {
   );
 };
 
-const BookingRow = ({ booking, onStatusChange }) => {
+const BookingRow = ({ booking, onStatusChange, onViewDetails }) => {
   const formatDate = (dateString) => {
     try {
       return format(parseISO(dateString), 'PPP p');
@@ -116,13 +118,13 @@ const BookingRow = ({ booking, onStatusChange }) => {
           <div className="flex-shrink-0 h-10 w-10">
             <img 
               className="h-10 w-10 rounded-full" 
-              src={booking.user?.photoURL || `https://ui-avatars.com/api/?name=${booking.user?.email || 'User'}&background=random`} 
+              src={booking.user?.photoURL || `https://ui-avatars.com/api/?name=${booking.user?.displayName || 'User'}&background=random`} 
               alt="" 
             />
           </div>
           <div>
-            <div className="text-sm font-medium text-gray-900">{booking.user?.email || 'N/A'}</div>
-            <div className="text-sm text-gray-500">{booking.user?.displayName || 'No name'}</div>
+            <div className="text-sm font-medium text-gray-900">{booking.user?.displayName || booking.user?.email}</div>
+            <div className="text-sm text-gray-500">{booking.user?.email}</div>
           </div>
         </div>
       </td>
@@ -158,6 +160,12 @@ const BookingRow = ({ booking, onStatusChange }) => {
       </td>
       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
         <div className="flex items-center justify-end space-x-2">
+          <button
+            onClick={() => onViewDetails(booking)}
+            className="text-primary hover:text-primary-dark"
+          >
+            <FaEye className="w-5 h-5" />
+          </button>
           {booking.status !== 'cancelled' && (
             <>
               {booking.status !== 'confirmed' && (
@@ -190,6 +198,7 @@ const ManageBookings = () => {
   const [sortBy, setSortBy] = useState('date');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [selectedBooking, setSelectedBooking] = useState(null);
 
   useEffect(() => {
     fetchBookings();
@@ -246,6 +255,7 @@ const ManageBookings = () => {
       setBookings(bookingsData);
     } catch (error) {
       console.error('Error fetching bookings:', error);
+      toast.error('Failed to load bookings');
     } finally {
       setLoading(false);
     }
@@ -272,10 +282,11 @@ const ManageBookings = () => {
         }
       }
       
-      // Refresh the bookings list
+      toast.success(`Booking ${newStatus} successfully`);
       fetchBookings();
     } catch (error) {
       console.error('Error updating booking status:', error);
+      toast.error('Failed to update booking status');
     }
   };
 
@@ -385,6 +396,7 @@ const ManageBookings = () => {
                         key={booking.id} 
                         booking={booking} 
                         onStatusChange={handleStatusChange}
+                        onViewDetails={setSelectedBooking}
                       />
                     ))}
                   </tbody>
@@ -394,6 +406,15 @@ const ManageBookings = () => {
           </div>
         </div>
       )}
+
+      <AnimatePresence>
+        {selectedBooking && (
+          <BookingDetails
+            booking={selectedBooking}
+            onClose={() => setSelectedBooking(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 };
