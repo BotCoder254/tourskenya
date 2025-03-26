@@ -1,17 +1,17 @@
 export const colors = {
-  primary: '#2563eb',
-  secondary: '#4f46e5',
-  success: '#22c55e',
-  danger: '#ef4444',
-  warning: '#f59e0b',
-  info: '#3b82f6',
-  neutral: '#EAEAEA',
-  accent: '#E3D2C3',
+  primary: '#E67E22',      // Warm orange - representing African sunset
+  secondary: '#27AE60',    // Forest green - representing nature
+  success: '#2ECC71',      // Vibrant green - representing wildlife
+  danger: '#C0392B',       // Deep red - representing Maasai culture
+  warning: '#F39C12',      // Golden yellow - representing savannah
+  info: '#3498DB',         // Sky blue - representing clear skies
+  neutral: '#D5B8A3',      // Warm beige - representing earth tones
+  accent: '#8E44AD',       // Deep purple - representing luxury
 };
 
 export const gradients = {
-  primary: 'bg-gradient-to-r from-[#66D2CE] to-[#2DAA9E]',
-  hover: 'hover:bg-gradient-to-l hover:from-[#66D2CE] hover:to-[#2DAA9E]',
+  primary: 'bg-gradient-to-r from-[#E67E22] to-[#D35400]',
+  hover: 'hover:bg-gradient-to-l hover:from-[#E67E22] hover:to-[#D35400]',
 };
 
 export const animations = {
