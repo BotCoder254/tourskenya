@@ -44,7 +44,7 @@ const Login = () => {
       animate={animations.fadeIn.animate}
       transition={animations.fadeIn.transition}
     >
-      <h2 className="text-3xl font-bold mb-6 text-gray-800">Welcome Back</h2>
+      <h2 className="text-3xl font-bold mb-6 text-gray-800">Welcome Back TourKenya</h2>
       
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
